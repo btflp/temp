@@ -1,0 +1,12 @@
+CMakeLists.txt
+android/
+build/
+core/
+core-legacy/
+ios/
+misc/
+repo
+resources/
+tools/
+wp8/
+.repo/
