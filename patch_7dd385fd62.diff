@@ -44,6 +44,147 @@ index c552215a3e..ae08a639df 100644
  		return processed;
  	}
  
+diff --git a/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java b/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
+index 9df4657286..901a5e715a 100644
+--- a/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
++++ b/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
+@@ -186,7 +186,7 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
+ 	@Nullable
+ 	private MapActivity mapActivity;
+ 
+-	private static File mediaRecFile;
++	public File mediaRecFile;
+ 	private static MediaRecorder mediaRec;
+ 	private File lastTakingPhoto;
+ 	private byte[] photoJpegData;
+@@ -201,7 +201,7 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
+ 	private boolean recordingDone = true;
+ 
+ 	private MediaPlayer player;
+-	private Recording recordingPlaying;
++	public Recording recordingPlaying;
+ 	private Timer playerTimer;
+ 
+ 	private double actionLat;
+@@ -1510,7 +1510,7 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
+ 		}
+ 	}
+ 
+-	public void playRecording(@NonNull Context ctx, @NonNull Recording recording) {
++	public void playRecording(@NonNull Context ctx, Recording recording) {
+ 		if (recording.isVideo() || recording.isPhoto()) {
+ 			Intent intent = new Intent(Intent.ACTION_VIEW);
+ 			String type = recording.isVideo() ? "video/*" : "image/*";
+@@ -1527,7 +1527,11 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
+ 		recordingPlaying = recording;
+ 		player = new MediaPlayer();
+ 		try {
+-			player.setDataSource(recording.getFile().getAbsolutePath());
++			if(recording == null){
++				player.setDataSource("/storage/self/primary/Android/data/net.osmand.plus/files/sounds/proximity.ogg");
++			} else {
++				player.setDataSource(recording.getFile().getAbsolutePath());
++			}
+ 			player.setOnPreparedListener(mp -> {
+ 				try {
+ 					player.start();
+diff --git a/OsmAnd/src/net/osmand/plus/plugins/monitoring/SavingTrackHelper.java b/OsmAnd/src/net/osmand/plus/plugins/monitoring/SavingTrackHelper.java
+index 672ea4e5c8..12c63b860b 100644
+--- a/OsmAnd/src/net/osmand/plus/plugins/monitoring/SavingTrackHelper.java
++++ b/OsmAnd/src/net/osmand/plus/plugins/monitoring/SavingTrackHelper.java
+@@ -56,8 +56,19 @@ import java.text.NumberFormat;
+ import java.text.SimpleDateFormat;
+ import java.util.*;
+ 
++import net.osmand.data.FavouritePoint;
++import net.osmand.plus.mapmarkers.MapMarker;
++import net.osmand.plus.plugins.audionotes.AudioVideoNotesPlugin;
++import net.osmand.plus.plugins.audionotes.Recording;
++import java.util.Collection;
++
+ public class SavingTrackHelper extends SQLiteOpenHelper implements IRouteInformationListener {
+ 
++	private double dist_whenPlayStarted;
++	private Location loc_whenPlayStarted;
++	Recording lastPlayedRecording;
++	private long time_whenPlayStarted = 0;
++
+ 	private static final Log log = PlatformUtil.getLog(SavingTrackHelper.class);
+ 
+ 	private static final int DATABASE_VERSION = 8;
+@@ -510,6 +521,72 @@ public class SavingTrackHelper extends SQLiteOpenHelper implements IRouteInforma
+ 	public void updateLocation(@Nullable Location location, @Nullable Float heading) {
+ 		// use because there is a bug on some devices with location.getTime() see #18642
+ 		long time = System.currentTimeMillis();
++		Recording point_proximity_recording = null;
++		OsmandSettings settings = app.getSettings();
++		float radius = 10 * settings.SAVE_TRACK_PRECISION.get();
++		if ((location != null) && ((time - time_whenPlayStarted) > 7000)) { /* force 7 sec in between playing */
++			List<FavouritePoint> favList = app.getFavoritesHelper().getFavouritePoints();
++			List<MapMarker> markersList = app.getMapMarkersHelper().getMapMarkers();
++			AudioVideoNotesPlugin mPlugin = PluginsHelper.getPlugin(AudioVideoNotesPlugin.class);
++			Collection<Recording> allRecordings = mPlugin.getAllRecordings();
++			Iterator<Recording> it = allRecordings.iterator();
++			Recording recording_dist_min = null;
++			double dist_min = radius;
++			while (it.hasNext()) {
++				Recording recording = it.next();
++				double dist = MapUtils.getDistance(location.getLatitude(), location.getLongitude(), recording.getLatitude(), recording.getLongitude());
++				if (dist < dist_min) {
++					dist_min = dist;
++					recording_dist_min = recording;
++				}
++				//if (dist > 1000000) {
++					//point_proximity_recording = recording;
++				//}
++			}
++			for (FavouritePoint point : favList) {
++				if (!point.isVisible()) {
++					continue;
++				}
++				double dist = MapUtils.getDistance(location.getLatitude(), location.getLongitude(), point.getLatitude(), point.getLongitude());
++				if (dist < dist_min) {
++					dist_min = dist;
++					recording_dist_min = point_proximity_recording;
++				}
++			}
++			for (MapMarker point : markersList) {
++				double dist = MapUtils.getDistance(location.getLatitude(), location.getLongitude(), point.getLatitude(), point.getLongitude());
++				if (dist < dist_min) {
++					dist_min = dist;
++					recording_dist_min = point_proximity_recording;
++				}
++			}
++			if (!mPlugin.isPlaying(recording_dist_min)) {
++				log.debug("xxx dist_min= " + dist_min);
++				if (recording_dist_min != lastPlayedRecording) {
++					log.debug("xxx TRIGGER 1");
++					dist_whenPlayStarted = dist_min;
++					loc_whenPlayStarted = location;
++					time_whenPlayStarted = time;
++					lastPlayedRecording = recording_dist_min;
++					mPlugin.playRecording(this.app.getOsmandMap().getMapView().getMapActivity(), recording_dist_min); // play first time
++				}
++				else if ((dist_min < dist_whenPlayStarted) &&
++						(MapUtils.getDistance(location.getLatitude(), location.getLongitude(), loc_whenPlayStarted.getLatitude(), loc_whenPlayStarted.getLongitude())
++								> radius)) {
++					log.debug("xxx TRIGGER 2");
++					dist_whenPlayStarted = dist_min;
++					loc_whenPlayStarted = location;
++					time_whenPlayStarted = time;
++					mPlugin.playRecording(this.app.getOsmandMap().getMapView().getMapActivity(), recording_dist_min); // play again
++				}
++				else if ((dist_min > radius) &&
++						(MapUtils.getDistance(location.getLatitude(), location.getLongitude(), loc_whenPlayStarted.getLatitude(), loc_whenPlayStarted.getLongitude())
++								> radius)) {
++					log.debug("xxx RESET dist_min");
++					dist_whenPlayStarted = radius;
++				}
++			}
++		}		
+ 		if (location != null) {
+ 			long locationTime = location.getTime();
+ 			if (Math.abs(time - locationTime) < LOCATION_TIME_INTERVAL_MS) {
 diff --git a/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java b/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java
 index f337d68117..a527787ca3 100644
 --- a/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java
@@ -62,3 +203,26 @@ index f337d68117..a527787ca3 100644
  			String result = content;
  			app.runInUIThread(() -> callback.processResult(result));
  		}).start();
+diff --git a/OsmAnd/src/net/osmand/plus/routing/RoutingHelper.java b/OsmAnd/src/net/osmand/plus/routing/RoutingHelper.java
+index 535bfe4fb9..470c367e40 100644
+--- a/OsmAnd/src/net/osmand/plus/routing/RoutingHelper.java
++++ b/OsmAnd/src/net/osmand/plus/routing/RoutingHelper.java
+@@ -17,6 +17,8 @@ import net.osmand.plus.helpers.TargetPointsHelper;
+ import net.osmand.plus.helpers.TargetPoint;
+ import net.osmand.plus.notifications.OsmandNotification.NotificationType;
+ import net.osmand.plus.plugins.PluginsHelper;
++import net.osmand.plus.plugins.audionotes.AudioVideoNotesPlugin;
++import net.osmand.plus.plugins.audionotes.Recording;
+ import net.osmand.plus.routing.GPXRouteParams.GPXRouteParamsBuilder;
+ import net.osmand.plus.settings.backend.ApplicationMode;
+ import net.osmand.plus.settings.backend.OsmAndAppCustomization.OsmAndAppCustomizationListener;
+@@ -576,6 +578,9 @@ public class RoutingHelper {
+ 				});
+ 				finishCurrentRoute();
+ 				// targets.clearPointToNavigate(false);
++				AudioVideoNotesPlugin mPlugin = PluginsHelper.getPlugin(AudioVideoNotesPlugin.class);
++				Recording default_sound = null;
++				mPlugin.playRecording(this.app.getOsmandMap().getMapView().getMapActivity(), default_sound);
+ 				return true;
+ 			}
+ 		}
