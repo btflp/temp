@@ -1,0 +1,29 @@
+diff --git a/OsmAnd/build.gradle b/OsmAnd/build.gradle
+index a66fa49e26..d90de3e94a 100644
+--- a/OsmAnd/build.gradle
++++ b/OsmAnd/build.gradle
+@@ -29,10 +29,10 @@ android {
+ 		}
+ 
+ 		publishing {
+-			storeFile file("/var/lib/jenkins/osmand_key")
+-			storePassword System.getenv("OSMAND_APK_PASSWORD")
+-			keyAlias "osmand"
+-			keyPassword System.getenv("OSMAND_APK_PASSWORD")
++			storeFile file("../keystores/debug.keystore")
++			storePassword "android"
++			keyAlias "androiddebugkey"
++			keyPassword "android"
+ 		}
+ 	}
+ 
+diff --git a/gradle.properties b/gradle.properties
+index 6f3bf3d5d5..44dfaa4933 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -26,4 +26,5 @@ android.enableR8.fullMode=false
+ android.defaults.buildfeatures.buildconfig=true
+ android.nonTransitiveRClass=false
+ android.nonFinalResIds=false
++org.gradle.jvmargs=-Xmx10g
+ #org.gradle.configuration-cache=true
