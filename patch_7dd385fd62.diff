@@ -1,29 +1,64 @@
-diff --git a/OsmAnd/build.gradle b/OsmAnd/build.gradle
-index a66fa49e26..d90de3e94a 100644
---- a/OsmAnd/build.gradle
-+++ b/OsmAnd/build.gradle
-@@ -29,10 +29,10 @@ android {
- 		}
+diff --git a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java b/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
+index c552215a3e..ae08a639df 100644
+--- a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
++++ b/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
+@@ -106,21 +106,9 @@ public class PluginsHelper {
+ 		Set<String> enabledPlugins = app.getSettings().getEnabledPlugins();
+ 		allPlugins.clear();
  
- 		publishing {
--			storeFile file("/var/lib/jenkins/osmand_key")
--			storePassword System.getenv("OSMAND_APK_PASSWORD")
--			keyAlias "osmand"
--			keyPassword System.getenv("OSMAND_APK_PASSWORD")
-+			storeFile file("../keystores/debug.keystore")
-+			storePassword "android"
-+			keyAlias "androiddebugkey"
-+			keyPassword "android"
- 		}
+-		allPlugins.add(new WikipediaPlugin(app));
+ 		allPlugins.add(new OsmandRasterMapsPlugin(app));
+ 		allPlugins.add(new OsmandMonitoringPlugin(app));
+-		checkMarketPlugin(app, new SRTMPlugin(app));
+-		allPlugins.add(new WeatherPlugin(app));
+-		checkMarketPlugin(app, new NauticalMapsPlugin(app));
+-		allPlugins.add(new AisTrackerPlugin(app));
+-		checkMarketPlugin(app, new SkiMapsPlugin(app));
+ 		allPlugins.add(new AudioVideoNotesPlugin(app));
+-		checkMarketPlugin(app, new ParkingPositionPlugin(app));
+-		allPlugins.add(new OsmEditingPlugin(app));
+-		allPlugins.add(new MapillaryPlugin(app));
+-		allPlugins.add(new ExternalSensorsPlugin(app));
+-		allPlugins.add(new VehicleMetricsPlugin(app));
+-		allPlugins.add(new AccessibilityPlugin(app));
+ 		allPlugins.add(new OsmandDevelopmentPlugin(app));
+ 
+ 		loadCustomPlugins(app);
+@@ -233,17 +221,8 @@ public class PluginsHelper {
+ 		boolean available = plugin.isAvailable(app);
+ 		boolean paid = plugin.isPaid();
+ 		boolean processed = false;
+-		// for test reasons
+-		//if ((Version.isDeveloperVersion(app) || !Version.isProductionVersion(app)) && !paid) {
+-		//	marketEnabled = false;
+-		//}
+-		if (available || (!marketEnabled && !paid)) {
+-			plugin.setInstallURL(null);
+-			processed = true;
+-		} else if (marketEnabled) {
+-			plugin.setInstallURL(Version.getUrlWithUtmRef(app, plugin.getComponentId1()));
+-			processed = true;
+-		}
++		plugin.setInstallURL(Version.getUrlWithUtmRef(app, plugin.getComponentId1()));
++		processed = true;
+ 		return processed;
  	}
  
-diff --git a/gradle.properties b/gradle.properties
-index 6f3bf3d5d5..44dfaa4933 100644
---- a/gradle.properties
-+++ b/gradle.properties
-@@ -26,4 +26,5 @@ android.enableR8.fullMode=false
- android.defaults.buildfeatures.buildconfig=true
- android.nonTransitiveRClass=false
- android.nonFinalResIds=false
-+org.gradle.jvmargs=-Xmx10g
- #org.gradle.configuration-cache=true
+diff --git a/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java b/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java
+index f337d68117..a527787ca3 100644
+--- a/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java
++++ b/OsmAnd/src/net/osmand/plus/profiles/data/RoutingDataUtils.java
+@@ -234,12 +234,7 @@ public class RoutingDataUtils {
+ 
+ 	public void downloadPredefinedEngines(CallbackWithObject<String> callback) {
+ 		new Thread(() -> {
+-			String content = null;
+-			try {
+-				content = app.getOnlineRoutingHelper().makeRequest(DOWNLOAD_ENGINES_URL);
+-			} catch (IOException e) {
+-				LOG.error("Error trying download predefined routing engines list: " + e.getMessage());
+-			}
++			String content = "{\"providers\":[{\"type\":\"osrm\",\"name\":\"Openstreetmap\",\"url\":\"https://routing.openstreetmap.de/\",\"routes\":[{\"name\":\"Car\",\"type\":\"car\",\"url\":\"https://routing.openstreetmap.de/routed-car/route/v1/driving/\"},{\"name\":\"Bike\",\"type\":\"bicycle\",\"url\":\"https://routing.openstreetmap.de/routed-bike/route/v1/driving/\"},{\"name\":\"Foot\",\"type\":\"pedestrian\",\"url\":\"https://routing.openstreetmap.de/routed-foot/route/v1/driving/\"}]}]}";
+ 			String result = content;
+ 			app.runInUIThread(() -> callback.processResult(result));
+ 		}).start();
