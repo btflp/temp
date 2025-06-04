@@ -11,7 +11,7 @@ if [ ! -d "/tmp/android-sdk" ]; then
         mkdir -p /tmp/android-sdk/cmdline-tools
         unzip commandlinetools.zip -d /tmp/android-sdk/cmdline-tools
         rm commandlinetools.zip
-    yes | /tmp/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$(realpath /tmp/android-sdk/) --install "platform-tools" "cmdline-tools;latest"
+    yes | /tmp/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$(realpath /tmp/android-sdk/) --install "platform-tools" "cmdline-tools;latest" "ndk;23.2.8568313"
     if [ -d "/tmp/android-sdk/cmdline-tools/latest" ]; then
         rm -rf /tmp/android-sdk/cmdline-tools/cmdline-tools
     fi
@@ -37,5 +37,6 @@ cd /workspaces/temp/android
 
 #git ../patch_7dd385fd62.diff
 JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ./gradlew assembleAndroidFullLegacyArm64
+JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ./gradlew assembleAndroidFullLegacyArmv7
 
 exit 0
