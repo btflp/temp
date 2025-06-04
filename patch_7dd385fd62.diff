@@ -292,23 +292,41 @@ index aed2219213..ef4bd390c7 100644
  
  }
 diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
-index 3c76a9a9a4..7c9dfbd241 100644
+index 3c76a9a9a4..a0910beb78 100644
 --- a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
 +++ b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
-@@ -57,6 +57,8 @@ import java.util.HashMap;
+@@ -57,6 +57,10 @@ import java.util.HashMap;
  import java.util.List;
  import java.util.Map;
  
 +import android.util.Log;
++import org.json.JSONObject;
++import org.json.JSONArray;
 +
  public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements OnSelectProfileCallback {
  
  
-@@ -490,6 +492,7 @@ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements O
+@@ -489,7 +493,23 @@ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements O
+ 				String body = engine.getRequestBody(path, null);
  				Map<String, String> headers = engine.getRequestHeaders();
  				String response = helper.makeRequest(exampleCard.getEditedText(), method, body, headers);
++				if(engine.getTitle() == "Graphhopper"){
++					try {
++						JSONObject input = new JSONObject(response);
++						JSONArray routes = input.getJSONArray("routes");
++						if (routes.length() > 0) {
++							JSONObject firstRoute = routes.getJSONObject(0);
++							JSONArray sections = firstRoute.getJSONArray("sections");
++							JSONObject result = new JSONObject();
++							result.put("sections", sections);
++							response = result.toString();;
++						}
++					} catch (Exception e) {
++						Log.e("JsonExtractor", "Error extracting sections", e);
++					}
++				}
  				resultOk = requestedEngine.isResultOk(errorMessage, response);
-+				android.util.Log.d("OnlineRoutingEngineFragment", response);
++				//android.util.Log.d("OnlineRoutingEngineFragment", response);
  			} catch (IOException | JSONException e) {
  				errorMessage.append(e);
  			}
