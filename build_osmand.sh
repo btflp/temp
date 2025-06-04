@@ -11,7 +11,7 @@ if [ ! -d "/tmp/android-sdk" ]; then
         mkdir -p /tmp/android-sdk/cmdline-tools
         unzip commandlinetools.zip -d /tmp/android-sdk/cmdline-tools
         rm commandlinetools.zip
-    yes | /tmp/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$(realpath /tmp/android-sdk/) --install "platform-tools" "cmdline-tools;latest" "ndk;23.2.8568313"
+    JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 yes | /tmp/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager --sdk_root=$(realpath /tmp/android-sdk/) --install "platform-tools" "cmdline-tools;latest" "ndk;23.2.8568313" "build-tools;35.0.0" "platforms;android-35"
     if [ -d "/tmp/android-sdk/cmdline-tools/latest" ]; then
         rm -rf /tmp/android-sdk/cmdline-tools/cmdline-tools
     fi
@@ -35,7 +35,8 @@ fi
 
 cd /workspaces/temp/android
 
-#git ../patch_7dd385fd62.diff
+git checkout 7dd385fd62
+git apply ../patch_7dd385fd62_gitpod.diff
 JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArm64
 JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArmv7
 

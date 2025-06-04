@@ -1,3 +1,22 @@
+diff --git a/OsmAnd/build.gradle b/OsmAnd/build.gradle
+index a66fa49e26..d90de3e94a 100644
+--- a/OsmAnd/build.gradle
++++ b/OsmAnd/build.gradle
+@@ -29,10 +29,10 @@ android {
+ 		}
+ 
+ 		publishing {
+-			storeFile file("/var/lib/jenkins/osmand_key")
+-			storePassword System.getenv("OSMAND_APK_PASSWORD")
+-			keyAlias "osmand"
+-			keyPassword System.getenv("OSMAND_APK_PASSWORD")
++			storeFile file("../keystores/debug.keystore")
++			storePassword "android"
++			keyAlias "androiddebugkey"
++			keyPassword "android"
+ 		}
+ 	}
+ 
 diff --git a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java b/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
 index c552215a3e..ae08a639df 100644
 --- a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
@@ -45,7 +64,7 @@ index c552215a3e..ae08a639df 100644
  	}
  
 diff --git a/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java b/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
-index 9df4657286..901a5e715a 100644
+index 9df4657286..796352e1e1 100644
 --- a/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
 +++ b/OsmAnd/src/net/osmand/plus/plugins/audionotes/AudioVideoNotesPlugin.java
 @@ -186,7 +186,7 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
@@ -66,15 +85,17 @@ index 9df4657286..901a5e715a 100644
  	private Timer playerTimer;
  
  	private double actionLat;
-@@ -1510,7 +1510,7 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
+@@ -1510,8 +1510,8 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
  		}
  	}
  
 -	public void playRecording(@NonNull Context ctx, @NonNull Recording recording) {
+-		if (recording.isVideo() || recording.isPhoto()) {
 +	public void playRecording(@NonNull Context ctx, Recording recording) {
- 		if (recording.isVideo() || recording.isPhoto()) {
++		if ((recording != null)&&(recording.isVideo() || recording.isPhoto())) {
  			Intent intent = new Intent(Intent.ACTION_VIEW);
  			String type = recording.isVideo() ? "video/*" : "image/*";
+ 			intent.setDataAndType(AndroidUtils.getUriForFile(ctx, recording.getFile()), type);
 @@ -1527,7 +1527,11 @@ public class AudioVideoNotesPlugin extends OsmandPlugin {
  		recordingPlaying = recording;
  		player = new MediaPlayer();
@@ -226,3 +247,35 @@ index 535bfe4fb9..470c367e40 100644
  				return true;
  			}
  		}
+diff --git a/OsmAnd/src/net/osmand/plus/search/listitems/NearbyPlacesCard.java b/OsmAnd/src/net/osmand/plus/search/listitems/NearbyPlacesCard.java
+index 19dfb0cdf3..235a42ef0c 100644
+--- a/OsmAnd/src/net/osmand/plus/search/listitems/NearbyPlacesCard.java
++++ b/OsmAnd/src/net/osmand/plus/search/listitems/NearbyPlacesCard.java
+@@ -34,7 +34,6 @@ import net.osmand.plus.search.NearbyPlacesAdapter.NearbyItemClickListener;
+ import net.osmand.plus.search.dialogs.QuickSearchDialogFragment;
+ import net.osmand.plus.settings.backend.OsmandSettings;
+ import net.osmand.plus.utils.UiUtilities;
+-import net.osmand.plus.wikipedia.WikipediaPlugin;
+ 
+ import org.apache.commons.logging.Log;
+ import org.apache.commons.logging.LogFactory;
+@@ -54,7 +53,6 @@ public class NearbyPlacesCard extends FrameLayout implements DownloadItemsAdapte
+ 	private static final Log log = LogFactory.getLog(NearbyPlacesCard.class);
+ 
+ 	private final OsmandApplication app;
+-	private final WikipediaPlugin plugin = PluginsHelper.requirePlugin(WikipediaPlugin.class);
+ 	private PoiUIFilter wikiFilter;
+ 
+ 	private SearchAmenitiesTask searchAmenitiesTask;
+@@ -231,10 +229,7 @@ public class NearbyPlacesCard extends FrameLayout implements DownloadItemsAdapte
+ 
+ 	@Nullable
+ 	private PoiUIFilter getWikiFilter() {
+-		if (wikiFilter == null) {
+-			wikiFilter = plugin.getTopWikiPoiFilter();
+-		}
+-		return wikiFilter;
++		return null;
+ 	}
+ 
+ 	private void setupExpandNearbyPlacesIndicator(boolean loadItemsOnInit) {
