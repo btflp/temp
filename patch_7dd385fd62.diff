@@ -17,6 +17,301 @@ index a66fa49e26..d90de3e94a 100644
  		}
  	}
  
+diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java b/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
+index aed2219213..ef4bd390c7 100644
+--- a/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
++++ b/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
+@@ -14,7 +14,6 @@ import net.osmand.plus.routing.RouteDirectionInfo;
+ import net.osmand.router.RouteCalculationProgress;
+ import net.osmand.router.TurnType;
+ import net.osmand.shared.gpx.GpxFile;
+-import net.osmand.util.GeoPolylineParserUtil;
+ 
+ import org.json.JSONArray;
+ import org.json.JSONException;
+@@ -30,6 +29,79 @@ import static net.osmand.util.Algorithms.isEmpty;
+ 
+ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 
++	/* Parses HERE Flexible Polyline format.Reference: https://github.com/heremaps/flexible-polyline */
++    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
++    private static final int[] DECODING_TABLE = new int[128];
++
++    static {
++        for (int i = 0; i < ALPHABET.length(); i++) {
++            DECODING_TABLE[ALPHABET.charAt(i)] = i;
++        }
++    }
++
++    // Precision levels as powers of 10
++    private static final double[] POW10 = {
++        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000
++    };
++
++    /**
++     * Parses a HERE flexible polyline and returns a list of LatLon points.
++     * @param encoded The encoded flexible polyline string.
++     * @return List of LatLon points.
++     */
++    public static List<LatLon> parseflexiblePolyline(String encoded) {
++        int index = 0;
++        int length = encoded.length();
++
++        // Decode header
++        int header = decodeChar(encoded, index++);
++        int precision = header & 0x0F;
++        int thirdDim = (header >> 4) & 0x07;
++        int thirdDimPrecision = (header >> 7) & 0x0F; // usually unused
++
++        // Decode polyline
++        int lat = 0, lng = 0, z = 0;
++        List<LatLon> result = new ArrayList<>();
++        int[] lastValues = {0, 0, 0};
++        int dim = (thirdDim == 0 ? 2 : 3);
++
++        while (index < length) {
++            for (int i = 0; i < dim; i++) {
++                long value = decodeUnsignedVarint(encoded, length, new int[] {index});
++                index = globalIndex;
++                long delta = (value & 1) != 0 ? ~(value >> 1) : (value >> 1);
++                lastValues[i] += delta;
++            }
++            double latVal = lastValues[0] / POW10[precision];
++            double lngVal = lastValues[1] / POW10[precision];
++            result.add(new LatLon(latVal, lngVal));
++            // If you wish to store third dimension, use lastValues[2]
++        }
++        return result;
++    }
++	/* ---------------------------------------------------------------------------------- */
++
++    private static int globalIndex = 0;
++    private static long decodeUnsignedVarint(String encoded, int length, int[] indexArr) {
++        int value = 0;
++        int shift = 0;
++        int index = indexArr[0];
++        int b;
++        do {
++            if (index >= length) break;
++            b = DECODING_TABLE[encoded.charAt(index++)];
++            value |= (b & 0x1F) << shift;
++            shift += 5;
++        } while (b >= 0x20);
++        globalIndex = index;
++        indexArr[0] = index;
++        return value;
++    }
++
++    private static int decodeChar(String encoded, int index) {
++        return DECODING_TABLE[encoded.charAt(index)];
++    }
++
+ 	public GraphhopperEngine(@Nullable Map<String, String> params) {
+ 		super(params);
+ 	}
+@@ -55,7 +127,7 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 	@NonNull
+ 	@Override
+ 	public String getStandardUrl() {
+-		return "https://graphhopper.com/api/1/route";
++		return "https://router.hereapi.com/v8/routes?return=polyline,actions,instructions,summary,turnByTurnActions&lang=de-de";
+ 	}
+ 
+ 	@Override
+@@ -81,25 +153,27 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 	@Override
+ 	protected void collectAllowedVehicles(@NonNull List<VehicleType> vehicles) {
+ 		vehicles.add(new VehicleType("car", R.string.routing_engine_vehicle_type_car));
+-		vehicles.add(new VehicleType("bike", R.string.routing_engine_vehicle_type_bike));
+-		vehicles.add(new VehicleType("foot", R.string.routing_engine_vehicle_type_foot));
+-		vehicles.add(new VehicleType("hike", R.string.routing_engine_vehicle_type_hiking));
+-		vehicles.add(new VehicleType("mtb", R.string.routing_engine_vehicle_type_mtb));
+-		vehicles.add(new VehicleType("racingbike", R.string.routing_engine_vehicle_type_racingbike));
+-		vehicles.add(new VehicleType("scooter", R.string.routing_engine_vehicle_type_scooter));
+-		vehicles.add(new VehicleType("truck", R.string.routing_engine_vehicle_type_truck));
+-		vehicles.add(new VehicleType("small_truck", R.string.routing_engine_vehicle_type_small_truck));
++		vehicles.add(new VehicleType("pedestrian", R.string.routing_engine_vehicle_type_bike));
++		vehicles.add(new VehicleType("bicycle", R.string.routing_engine_vehicle_type_foot));
+ 	}
+ 
+ 	@Override
+ 	protected void makeFullUrl(@NonNull StringBuilder sb, @NonNull List<LatLon> path, @Nullable Float startBearing) {
+-		sb.append("?");
++		sb.append("&");
+ 		for (int i = 0; i < path.size(); i++) {
+ 			LatLon point = path.get(i);
+-			sb.append("point=")
++			if (i ==0) {
++				sb.append("origin=")
+ 					.append(point.getLatitude())
+ 					.append(',')
+ 					.append(point.getLongitude());
++			}
++			if (i == path.size() - 1) {
++				sb.append("destination=")
++					.append(point.getLatitude())
++					.append(',')
++					.append(point.getLongitude());
++			}					
+ 			if (i < path.size() - 1) {
+ 				sb.append('&');
+ 			}
+@@ -107,13 +181,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 		String vehicle = getVehicleKeyForUrl();
+ 		if (!isEmpty(vehicle)) {
+ 			if (!isCustomParameterizedVehicle()) {
+-				sb.append('&').append("profile=");
++				sb.append('&').append("transportMode=");
+ 			}
+ 			sb.append(vehicle);
+ 		}
+ 		String apiKey = get(EngineParameter.API_KEY);
+ 		if (!isEmpty(apiKey)) {
+-			sb.append('&').append("key=").append(apiKey);
++			sb.append('&').append("apikey=").append(apiKey);
+ 		}
+ 	}
+ 
+@@ -121,22 +195,22 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 	protected OnlineRoutingResponse parseServerResponse(@NonNull JSONObject root,
+ 	                                                    @NonNull OsmandApplication app,
+ 	                                                    boolean leftSideNavigation) throws JSONException {
+-		String encoded = root.getString("points");
+-		List<LatLon> points = GeoPolylineParserUtil.parse(encoded, GeoPolylineParserUtil.PRECISION_5);
++		String encoded = root.getString("polyline");
++		List<LatLon> points = parseflexiblePolyline(encoded);
+ 		if (isEmpty(points)) return null;
+ 		List<Location> route = convertRouteToLocationsList(points);
+ 
+-		JSONArray instructions = root.getJSONArray("instructions");
++		JSONArray instructions = root.getJSONArray("actions");
+ 		List<RouteDirectionInfo> directions = new ArrayList<>();
++		int lastOffset=0;
+ 		for (int i = 0; i < instructions.length(); i++) {
+ 			JSONObject instruction = instructions.getJSONObject(i);
+-			int distance = (int) Math.round(instruction.getDouble("distance"));
+-			String description = instruction.getString("text");
+-			String streetName = instruction.getString("street_name");
+-			int timeInSeconds = Math.round(instruction.getInt("time") / 1000f);
+-			JSONArray interval = instruction.getJSONArray("interval");
+-			int startPointOffset = interval.getInt(0);
+-			int endPointOffset = interval.getInt(1);
++			int distance = (int) Math.round(instruction.getDouble("length"));
++			String description = instruction.getString("instruction");
++			String streetName = "unbekannt"; //instruction.getString("street_name");
++			int timeInSeconds = Math.round(instruction.getInt("duration"));
++			int startPointOffset = instruction.getInt("offset");
++			int endPointOffset = lastOffset;
+ 
+ 			float averageSpeed = (float) distance / timeInSeconds;
+ 			TurnType turnType = parseTurnType(instruction, leftSideNavigation);
+@@ -147,14 +221,68 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 			direction.setStreetName(streetName);
+ 			direction.setDistance(distance);
+ 			directions.add(direction);
++
++			lastOffset = startPointOffset;
+ 		}
+ 		return new OnlineRoutingResponse(route, directions);
+ 	}
+ 
++    /**
++     * Map HERE Routing API v8 'action' and 'direction' to Graphhopper 'sign' code.
++     *
++     * @param action    The HERE maneuver action (e.g., "turn", "depart", "arrive").
++     * @param direction The HERE maneuver direction (e.g., "left", "right", "straight").
++     * @return The Graphhopper sign code, or Integer.MIN_VALUE if unknown.
++     */
++    public static int mapHereToGraphhopperSign(String action, String direction) {
++        if (action == null) return Integer.MIN_VALUE;
++
++        switch (action) {
++            case "depart":
++                return 0; // continue
++
++            case "arrive":
++                return 4; // destination reached
++
++            case "turn":
++                if ("slightLeft".equals(direction)) return -1;
++                if ("left".equals(direction)) return -2;
++                if ("sharpLeft".equals(direction)) return -3;
++                if ("slightRight".equals(direction)) return 1;
++                if ("right".equals(direction)) return 2;
++                if ("sharpRight".equals(direction)) return 3;
++                if ("straight".equals(direction)) return 0;
++                break;
++
++            case "continue":
++                return 0; // continue
++
++            case "uturn":
++                return -6; // Graphhopper: -6 = u-turn left, 6 = u-turn right
++            case "enter-roundabout":
++            case "roundabout":
++                return 6; // enter roundabout
++            case "leave-roundabout":
++                return 7; // leave roundabout (not standard, adjust as needed)
++            case "keep-left":
++                return -7; // keep left (not standard, adjust as needed)
++            case "keep-right":
++                return 7; // keep right (not standard, adjust as needed)
++            case "merge":
++            case "fork":
++            case "ramp":
++                return 11; // use slip road
++            case "take-exit":
++                return 12; // take exit
++        }
++        // If no mapping found, return unknown value
++        return Integer.MIN_VALUE;
++    }
++
+ 	@NonNull
+ 	private TurnType parseTurnType(@NonNull JSONObject instruction,
+ 	                               boolean leftSide) throws JSONException {
+-		int sign = instruction.getInt("sign");
++		int sign = mapHereToGraphhopperSign(instruction.getString("action"),instruction.getString("direction"));
+ 		TurnType turnType = identifyTurnType(sign, leftSide);
+ 
+ 		if (turnType == null) {
+@@ -250,13 +378,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+ 	@NonNull
+ 	@Override
+ 	protected String getErrorMessageKey() {
+-		return "message";
++		return "error_description";
+ 	}
+ 
+ 	@NonNull
+ 	@Override
+ 	protected String getRootArrayKey() {
+-		return "paths";
++		return "sections";
+ 	}
+ 
+ }
+diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
+index 3c76a9a9a4..7c9dfbd241 100644
+--- a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
++++ b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
+@@ -57,6 +57,8 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ 
++import android.util.Log;
++
+ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements OnSelectProfileCallback {
+ 
+ 
+@@ -490,6 +492,7 @@ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements O
+ 				Map<String, String> headers = engine.getRequestHeaders();
+ 				String response = helper.makeRequest(exampleCard.getEditedText(), method, body, headers);
+ 				resultOk = requestedEngine.isResultOk(errorMessage, response);
++				android.util.Log.d("OnlineRoutingEngineFragment", response);
+ 			} catch (IOException | JSONException e) {
+ 				errorMessage.append(e);
+ 			}
 diff --git a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java b/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
 index c552215a3e..ae08a639df 100644
 --- a/OsmAnd/src/net/osmand/plus/plugins/PluginsHelper.java
@@ -279,3 +574,15 @@ index 19dfb0cdf3..235a42ef0c 100644
  	}
  
  	private void setupExpandNearbyPlacesIndicator(boolean loadItemsOnInit) {
+diff --git a/gradle.properties b/gradle.properties
+index 6f3bf3d5d5..3d8e39f999 100644
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -26,4 +26,7 @@ android.enableR8.fullMode=false
+ android.defaults.buildfeatures.buildconfig=true
+ android.nonTransitiveRClass=false
+ android.nonFinalResIds=false
++org.gradle.jvmargs=-Xmx20g -Xms2g
++org.gradle.parallel=true
++org.gradle.workers.max=16
+ #org.gradle.configuration-cache=true

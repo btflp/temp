@@ -17,13 +17,13 @@ if [ ! -d "/tmp/android-sdk" ]; then
     fi
 fi
 
-if [ ! -d "/workspaces/temp/android" ]; then
+if [ ! -d "/workspace/temp/android" ]; then
     curl https://storage.googleapis.com/git-repo-downloads/repo > ./repo
     chmod a+x ./repo
     ./repo init -u https://github.com/osmandapp/OsmAnd-manifest -m readonly.xml
     ./repo sync
 
-    cd /workspaces/temp/android
+    cd /workspace/temp/android
     sed -e 's#storeFile file("/var/lib/jenkins/osmand_key")#storeFile file("../keystores/debug.keystore")#' \
     -e 's#storePassword System.getenv("OSMAND_APK_PASSWORD")#storePassword "android"#' \
     -e 's#storePassword System.getenv("OSMAND_APK_PASSWORD")#storePassword "android"#' \
@@ -33,11 +33,11 @@ if [ ! -d "/workspaces/temp/android" ]; then
     mv OsmAnd/build.gradle.neu OsmAnd/build.gradle    
 fi
 
-cd /workspaces/temp/android
+cd /workspace/temp/android
 
 git checkout 7dd385fd62
 git apply ../patch_7dd385fd62_gitpod.diff
-JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArm64
-JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArmv7
+JAVA_TOOL_OPTIONS=' -Xmx20g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArm64
+JAVA_TOOL_OPTIONS=' -Xmx20g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArmv7
 
 exit 0
