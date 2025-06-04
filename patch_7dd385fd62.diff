@@ -152,7 +152,7 @@ index aed2219213..ef4bd390c7 100644
 +					.append(point.getLatitude())
 +					.append(',')
 +					.append(point.getLongitude());
-+			}					
++			}
  			if (i < path.size() - 1) {
  				sb.append('&');
  			}
@@ -515,7 +515,7 @@ index 672ea4e5c8..12c63b860b 100644
 +					dist_whenPlayStarted = radius;
 +				}
 +			}
-+		}		
++		}
  		if (location != null) {
  			long locationTime = location.getTime();
  			if (Math.abs(time - locationTime) < LOCATION_TIME_INTERVAL_MS) {
