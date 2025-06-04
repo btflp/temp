@@ -17,8 +17,51 @@ index a66fa49e26..d90de3e94a 100644
  		}
  	}
  
+diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/OnlineRoutingHelper.java b/OsmAnd/src/net/osmand/plus/onlinerouting/OnlineRoutingHelper.java
+index d392a4eba3..3425dee669 100644
+--- a/OsmAnd/src/net/osmand/plus/onlinerouting/OnlineRoutingHelper.java
++++ b/OsmAnd/src/net/osmand/plus/onlinerouting/OnlineRoutingHelper.java
+@@ -41,6 +41,9 @@ import static net.osmand.util.Algorithms.GZIP_FILE_SIGNATURE;
+ import static net.osmand.util.Algorithms.ZIP_FILE_SIGNATURE;
+ import static net.osmand.util.Algorithms.isEmpty;
+ 
++import org.json.JSONObject;
++import org.json.JSONArray;
++
+ public class OnlineRoutingHelper {
+ 
+ 	private static final Log LOG = PlatformUtil.getLog(OnlineRoutingHelper.class);
+@@ -169,7 +172,27 @@ public class OnlineRoutingHelper {
+ 		} catch (IOException ignored) {
+ 		}
+ 		LOG.info(String.format("Online routing request finished %d ms", System.currentTimeMillis() - tm));
+-		return content.toString();
++		LOG.info("-------------------------------------------------------------------------");
++		LOG.info(content.toString());
++		LOG.info("-------------------------------------------------------------------------");
++		String response = content.toString();
++		if(url.contains("hereapi")){
++			try {
++				JSONObject input = new JSONObject(response);
++				JSONArray routes = input.getJSONArray("routes");
++				if (routes.length() > 0) {
++					JSONObject firstRoute = routes.getJSONObject(0);
++					JSONArray sections = firstRoute.getJSONArray("sections");
++					JSONObject result = new JSONObject();
++					result.put("sections", sections);
++					response = result.toString();
++					LOG.debug("hereapi adjusted response= " + response);
++				}
++			} catch (Exception e) {
++				LOG.debug("Exception JSON extract");
++			}
++		}
++		return response;
+ 	}
+ 
+ 	@Nullable
 diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java b/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
-index aed2219213..ef4bd390c7 100644
+index aed2219213..b6d707aa0a 100644
 --- a/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
 +++ b/OsmAnd/src/net/osmand/plus/onlinerouting/engine/GraphhopperEngine.java
 @@ -14,7 +14,6 @@ import net.osmand.plus.routing.RouteDirectionInfo;
@@ -29,10 +72,17 @@ index aed2219213..ef4bd390c7 100644
  
  import org.json.JSONArray;
  import org.json.JSONException;
-@@ -30,6 +29,79 @@ import static net.osmand.util.Algorithms.isEmpty;
+@@ -28,8 +27,86 @@ import java.util.Set;
+ import static net.osmand.plus.onlinerouting.engine.EngineType.GRAPHHOPPER_TYPE;
+ import static net.osmand.util.Algorithms.isEmpty;
  
++import org.apache.commons.logging.Log;
++import net.osmand.PlatformUtil;
++
  public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  
++	private static final Log log = PlatformUtil.getLog(GraphhopperEngine.class);
++
 +	/* Parses HERE Flexible Polyline format.Reference: https://github.com/heremaps/flexible-polyline */
 +    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 +    private static final int[] DECODING_TABLE = new int[128];
@@ -109,7 +159,7 @@ index aed2219213..ef4bd390c7 100644
  	public GraphhopperEngine(@Nullable Map<String, String> params) {
  		super(params);
  	}
-@@ -55,7 +127,7 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -55,7 +132,7 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  	@NonNull
  	@Override
  	public String getStandardUrl() {
@@ -118,7 +168,7 @@ index aed2219213..ef4bd390c7 100644
  	}
  
  	@Override
-@@ -81,25 +153,27 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -81,25 +158,27 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  	@Override
  	protected void collectAllowedVehicles(@NonNull List<VehicleType> vehicles) {
  		vehicles.add(new VehicleType("car", R.string.routing_engine_vehicle_type_car));
@@ -143,20 +193,20 @@ index aed2219213..ef4bd390c7 100644
 -			sb.append("point=")
 +			if (i ==0) {
 +				sb.append("origin=")
- 					.append(point.getLatitude())
- 					.append(',')
- 					.append(point.getLongitude());
-+			}
-+			if (i == path.size() - 1) {
-+				sb.append("destination=")
 +					.append(point.getLatitude())
 +					.append(',')
 +					.append(point.getLongitude());
 +			}
++			if (i == path.size() - 1) {
++				sb.append("destination=")
+ 					.append(point.getLatitude())
+ 					.append(',')
+ 					.append(point.getLongitude());
++			}					
  			if (i < path.size() - 1) {
  				sb.append('&');
  			}
-@@ -107,13 +181,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -107,13 +186,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  		String vehicle = getVehicleKeyForUrl();
  		if (!isEmpty(vehicle)) {
  			if (!isCustomParameterizedVehicle()) {
@@ -172,16 +222,19 @@ index aed2219213..ef4bd390c7 100644
  		}
  	}
  
-@@ -121,22 +195,22 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -121,22 +200,25 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  	protected OnlineRoutingResponse parseServerResponse(@NonNull JSONObject root,
  	                                                    @NonNull OsmandApplication app,
  	                                                    boolean leftSideNavigation) throws JSONException {
 -		String encoded = root.getString("points");
 -		List<LatLon> points = GeoPolylineParserUtil.parse(encoded, GeoPolylineParserUtil.PRECISION_5);
 +		String encoded = root.getString("polyline");
++		log.debug("encoded " + encoded);
 +		List<LatLon> points = parseflexiblePolyline(encoded);
++		log.debug("parseflexiblePolyline " + points.toString());
  		if (isEmpty(points)) return null;
  		List<Location> route = convertRouteToLocationsList(points);
++		log.debug("convertRouteToLocationsList " + route.toString());
  
 -		JSONArray instructions = root.getJSONArray("instructions");
 +		JSONArray instructions = root.getJSONArray("actions");
@@ -205,7 +258,7 @@ index aed2219213..ef4bd390c7 100644
  
  			float averageSpeed = (float) distance / timeInSeconds;
  			TurnType turnType = parseTurnType(instruction, leftSideNavigation);
-@@ -147,14 +221,68 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -147,14 +229,68 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  			direction.setStreetName(streetName);
  			direction.setDistance(distance);
  			directions.add(direction);
@@ -275,7 +328,7 @@ index aed2219213..ef4bd390c7 100644
  		TurnType turnType = identifyTurnType(sign, leftSide);
  
  		if (turnType == null) {
-@@ -250,13 +378,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
+@@ -250,13 +386,13 @@ public class GraphhopperEngine extends JsonOnlineRoutingEngine {
  	@NonNull
  	@Override
  	protected String getErrorMessageKey() {
@@ -292,21 +345,26 @@ index aed2219213..ef4bd390c7 100644
  
  }
 diff --git a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
-index 3c76a9a9a4..a0910beb78 100644
+index 3c76a9a9a4..c1d74075f8 100644
 --- a/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
 +++ b/OsmAnd/src/net/osmand/plus/onlinerouting/ui/OnlineRoutingEngineFragment.java
-@@ -57,6 +57,10 @@ import java.util.HashMap;
+@@ -57,8 +57,15 @@ import java.util.HashMap;
  import java.util.List;
  import java.util.Map;
  
-+import android.util.Log;
++import org.apache.commons.logging.Log;
++import net.osmand.PlatformUtil;
++import org.json.JSONException;
 +import org.json.JSONObject;
 +import org.json.JSONArray;
 +
  public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements OnSelectProfileCallback {
  
++	private static final Log log = PlatformUtil.getLog(OnlineRoutingEngineFragment.class);
  
-@@ -489,7 +493,23 @@ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements O
+ 	public static final String TAG = OnlineRoutingEngineFragment.class.getSimpleName();
+ 
+@@ -489,7 +496,24 @@ public class OnlineRoutingEngineFragment extends BaseOsmAndFragment implements O
  				String body = engine.getRequestBody(path, null);
  				Map<String, String> headers = engine.getRequestHeaders();
  				String response = helper.makeRequest(exampleCard.getEditedText(), method, body, headers);
@@ -319,10 +377,11 @@ index 3c76a9a9a4..a0910beb78 100644
 +							JSONArray sections = firstRoute.getJSONArray("sections");
 +							JSONObject result = new JSONObject();
 +							result.put("sections", sections);
-+							response = result.toString();;
++							response = result.toString();
++							log.debug("xxx response= " + response);
 +						}
 +					} catch (Exception e) {
-+						Log.e("JsonExtractor", "Error extracting sections", e);
++						log.debug("Exception JSON extract");
 +					}
 +				}
  				resultOk = requestedEngine.isResultOk(errorMessage, response);
@@ -515,7 +574,7 @@ index 672ea4e5c8..12c63b860b 100644
 +					dist_whenPlayStarted = radius;
 +				}
 +			}
-+		}
++		}		
  		if (location != null) {
  			long locationTime = location.getTime();
  			if (Math.abs(time - locationTime) < LOCATION_TIME_INTERVAL_MS) {
