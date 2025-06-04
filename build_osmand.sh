@@ -36,7 +36,7 @@ fi
 cd /workspaces/temp/android
 
 #git ../patch_7dd385fd62.diff
-JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ./gradlew assembleAndroidFullLegacyArm64
-JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ./gradlew assembleAndroidFullLegacyArmv7
+JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArm64
+JAVA_TOOL_OPTIONS=' -Xmx10g' JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 PATH=$JAVA_HOME/bin:$PATH ANDROID_HOME=/tmp/android-sdk PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin ANDROID_NDK=/tmp/android-sdk/ndk/23.2.8568313 ./gradlew assembleAndroidFullLegacyArmv7
 
 exit 0
